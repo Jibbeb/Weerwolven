@@ -6,6 +6,9 @@ let width, height;
 let worldWidth = 2000;
 const camera = { x: 0, y: 0 };
 
+const images = {};
+let assetsLoaded = false;
+
 let gameState = 'PLAYING'; // 'PLAYING', 'LOCKED'
 let currentLevel = 1;
 
@@ -24,6 +27,7 @@ const touchControls = {
 // UI Elements
 const cageScreen = document.getElementById('cage-screen');
 const levelTitle = document.getElementById('level-title');
+const storyText = document.getElementById('story-text');
 const cageCodeInput = document.getElementById('cage-code');
 const btnOpen = document.getElementById('btn-open');
 
@@ -40,7 +44,8 @@ const levels = [
         ],
         finishX: 1900,
         chaserSpeed: 2.0,
-        password: 'WOLF'
+        password: 'WOLF',
+        story: "De nacht valt over Wakkerdam. Je voelt een hete adem in je nek. REN!"
     },
     {
         id: 2,
@@ -54,7 +59,8 @@ const levels = [
         ],
         finishX: 2200,
         chaserSpeed: 2.5,
-        password: 'MOON'
+        password: 'MOON',
+        story: "Je bent even veilig, maar de geur van het bos is onheilspellend. Hij komt dichterbij."
     },
     {
         id: 3,
@@ -69,7 +75,8 @@ const levels = [
         ],
         finishX: 2500,
         chaserSpeed: 3.0,
-        password: 'HOWL'
+        password: 'HOWL',
+        story: "Het hol van het beest. Dit is je laatste kans om de waarheid te onthullen. Overleef."
     }
 ];
 
@@ -155,6 +162,7 @@ const btnRight = document.getElementById('btn-right');
 const btnJump = document.getElementById('btn-jump');
 
 const addTouchListeners = (btn, controlKey) => {
+    if (!btn) return;
     btn.addEventListener('touchstart', (e) => { e.preventDefault(); touchControls[controlKey] = true; });
     btn.addEventListener('touchend', (e) => { e.preventDefault(); touchControls[controlKey] = false; });
     btn.addEventListener('mousedown', (e) => { touchControls[controlKey] = true; });
@@ -197,11 +205,21 @@ function nextLevel() {
 
     // Show Cage UI
     levelTitle.innerText = `Level ${currentLevel} - Kooi`;
+
+    // Update Story Text
+    const levelData = levels[currentLevel - 1];
+    if (levelData && levelData.story) {
+        storyText.innerText = levelData.story;
+    } else {
+        storyText.innerText = "";
+    }
+
     cageScreen.classList.remove('hidden');
 }
 
 function resetLevel(fullReset = true) {
     const levelData = levels[currentLevel - 1];
+    if (!levelData) return;
 
     // Update Chaser Speed
     chaser.speed = levelData.chaserSpeed;
@@ -325,33 +343,55 @@ function draw() {
     ctx.fillStyle = '#222';
     ctx.fillRect(0, 0, width, height);
 
+    if (assetsLoaded && images.background) {
+        ctx.drawImage(images.background, 0, 0, width, height);
+    }
+
     ctx.save();
     ctx.translate(-camera.x, 0);
 
     // Draw Platforms
     platforms.forEach(platform => {
-        ctx.fillStyle = platform.color;
-        ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+        if (assetsLoaded && images.ground) {
+            const ptrn = ctx.createPattern(images.ground, 'repeat');
+            ctx.fillStyle = ptrn;
+            ctx.save();
+            ctx.translate(platform.x, platform.y);
+            ctx.fillRect(0, 0, platform.width, platform.height);
+            ctx.restore();
+        } else {
+            ctx.fillStyle = platform.color;
+            ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+        }
     });
 
     // Draw Goal
-    ctx.fillStyle = goal.color;
-    ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+    if (assetsLoaded && images.goal) {
+        ctx.drawImage(images.goal, goal.x, goal.y, goal.width, goal.height);
+    } else {
+        ctx.fillStyle = goal.color;
+        ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+    }
 
     // Draw Player
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x, player.y, player.width, player.height);
+    if (assetsLoaded && images.player) {
+        ctx.drawImage(images.player, player.x, player.y, player.width, player.height);
+    } else {
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
 
     // Draw Chaser (Wall of Death)
-    // Draw from far left (relative to camera, but we want it to cover everything left of chaser.x)
-    // Since we translated by -camera.x, drawing from camera.x ensures we cover the visible screen
-    // But simpler: Draw from -10000 to chaser.x + width
-    ctx.fillStyle = chaser.color;
-    ctx.fillRect(camera.x - 100, 0, (chaser.x + chaser.width) - (camera.x - 100), height);
-
-    // Draw leading edge
-    ctx.fillStyle = 'red';
-    ctx.fillRect(chaser.x, 0, chaser.width, height);
+    if (assetsLoaded && images.chaser) {
+        ctx.drawImage(images.chaser, chaser.x, 0, chaser.width, height);
+        ctx.fillStyle = 'rgba(50, 0, 0, 0.8)';
+        ctx.fillRect(camera.x - 100, 0, (chaser.x) - (camera.x - 100), height);
+    } else {
+        ctx.fillStyle = chaser.color;
+        ctx.fillRect(camera.x - 100, 0, (chaser.x + chaser.width) - (camera.x - 100), height);
+        ctx.fillStyle = 'red';
+        ctx.fillRect(chaser.x, 0, chaser.width, height);
+    }
 
     ctx.restore();
 }
@@ -363,6 +403,40 @@ function loop() {
 }
 
 // Initial Setup
+// Asset Loading
+function loadAssets(callback) {
+    const assetNames = ['player', 'ground', 'background', 'chaser', 'goal'];
+    let loadedCount = 0;
+
+    assetNames.forEach(name => {
+        const img = new Image();
+        img.src = `assets/${name}.png`;
+        img.onload = () => {
+            loadedCount++;
+            if (loadedCount === assetNames.length) {
+                assetsLoaded = true;
+                console.log("All assets loaded");
+                if (callback) callback();
+            }
+        };
+        img.onerror = () => {
+            console.error(`Failed to load asset: ${name}`);
+            // Even if assets fail, we start the game (will use fallback colors)
+            loadedCount++;
+            if (loadedCount === assetNames.length) {
+                console.log("Assets loaded with errors");
+                if (callback) callback();
+            }
+        };
+        images[name] = img;
+    });
+}
+
+// Initial Setup
 resize();
 resetLevel(); // Load Level 1
-loop();
+
+// Start game after assets load
+loadAssets(() => {
+    loop();
+});
