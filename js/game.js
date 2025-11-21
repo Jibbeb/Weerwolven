@@ -3,7 +3,7 @@ const ctx = canvas.getContext('2d');
 
 // Game State
 let width, height;
-const worldWidth = 2000;
+let worldWidth = 2000;
 const camera = { x: 0, y: 0 };
 
 let gameState = 'PLAYING'; // 'PLAYING', 'LOCKED'
@@ -27,6 +27,52 @@ const levelTitle = document.getElementById('level-title');
 const cageCodeInput = document.getElementById('cage-code');
 const btnOpen = document.getElementById('btn-open');
 
+// Level Configuration
+const levels = [
+    {
+        id: 1,
+        platforms: [
+            { x: 300, y: 0, width: 200, height: 20, color: '#ff0055' },
+            { x: 600, y: 0, width: 200, height: 20, color: '#ff0055' },
+            { x: 900, y: 0, width: 200, height: 20, color: '#ff0055' },
+            { x: 1200, y: 0, width: 200, height: 20, color: '#ff0055' },
+            { x: 1600, y: 0, width: 100, height: 20, color: '#ff0055' }
+        ],
+        finishX: 1900,
+        chaserSpeed: 2.0,
+        password: 'WOLF'
+    },
+    {
+        id: 2,
+        platforms: [
+            { x: 200, y: 0, width: 150, height: 20, color: '#0055ff' },
+            { x: 500, y: 0, width: 150, height: 20, color: '#0055ff' },
+            { x: 800, y: 0, width: 150, height: 20, color: '#0055ff' },
+            { x: 1100, y: 0, width: 150, height: 20, color: '#0055ff' },
+            { x: 1500, y: 0, width: 150, height: 20, color: '#0055ff' },
+            { x: 1800, y: 0, width: 150, height: 20, color: '#0055ff' }
+        ],
+        finishX: 2200,
+        chaserSpeed: 2.5,
+        password: 'MOON'
+    },
+    {
+        id: 3,
+        platforms: [
+            { x: 250, y: 0, width: 100, height: 20, color: '#55ff00' },
+            { x: 500, y: 0, width: 100, height: 20, color: '#55ff00' },
+            { x: 750, y: 0, width: 100, height: 20, color: '#55ff00' },
+            { x: 1000, y: 0, width: 100, height: 20, color: '#55ff00' },
+            { x: 1300, y: 0, width: 100, height: 20, color: '#55ff00' },
+            { x: 1600, y: 0, width: 100, height: 20, color: '#55ff00' },
+            { x: 2000, y: 0, width: 100, height: 20, color: '#55ff00' }
+        ],
+        finishX: 2500,
+        chaserSpeed: 3.0,
+        password: 'HOWL'
+    }
+];
+
 // Player Object
 const player = {
     x: 100,
@@ -42,15 +88,16 @@ const player = {
     grounded: false
 };
 
-// Level Objects
-const platforms = [
-    { x: 300, y: 0, width: 200, height: 20, color: '#ff0055' },
-    { x: 600, y: 0, width: 200, height: 20, color: '#ff0055' },
-    { x: 900, y: 0, width: 200, height: 20, color: '#ff0055' },
-    { x: 1200, y: 0, width: 200, height: 20, color: '#ff0055' },
-    { x: 1600, y: 0, width: 100, height: 20, color: '#ff0055' }
-];
+// Chaser Object (Wall of Death)
+const chaser = {
+    x: -200,
+    width: 40, // Visual width of the leading edge
+    color: 'rgba(255, 0, 0, 0.3)',
+    speed: 2.0
+};
 
+// Current Level Data
+let platforms = [];
 const goal = {
     x: 1900,
     y: 0,
@@ -63,20 +110,31 @@ const goal = {
 function resize() {
     width = canvas.width = window.innerWidth;
     height = canvas.height = window.innerHeight;
-
-    // Position platforms relative to bottom
-    // Max jump is roughly 180px with jumpPower -17
-    platforms[0].y = height - 120;
-    platforms[1].y = height - 240;
-    platforms[2].y = height - 360;
-    platforms[3].y = height - 240;
-    platforms[4].y = height - 120;
-
-    // Position goal on the ground
-    goal.y = height - goal.height;
+    updateLevelLayout();
 }
 window.addEventListener('resize', resize);
-resize();
+
+function updateLevelLayout() {
+    const levelData = levels[currentLevel - 1];
+    if (!levelData) return;
+
+    // Update World Width based on finish line
+    worldWidth = levelData.finishX + 500;
+
+    // Load Platforms
+    platforms = levelData.platforms.map(p => ({ ...p })); // Copy
+
+    // Position platforms relative to bottom (simple procedural height for now)
+    platforms.forEach((p, i) => {
+        // Alternating heights for variety
+        const offset = (i % 3 + 1) * 120;
+        p.y = height - offset;
+    });
+
+    // Position goal
+    goal.x = levelData.finishX;
+    goal.y = height - goal.height;
+}
 
 // Input Handling
 window.addEventListener('keydown', (e) => {
@@ -111,9 +169,9 @@ addTouchListeners(btnJump, 'jump');
 // Cage Puzzle Logic
 btnOpen.addEventListener('click', () => {
     const code = cageCodeInput.value.toUpperCase();
-    // For now, accept 'WOLF' or just let them pass if they type anything/nothing for easy testing if desired.
-    // User asked: "Voor nu mag de code simpelweg 'WOLF' zijn (of maak het zo dat elke invoer werkt voor testdoeleinden)."
-    if (code === 'WOLF' || code.length > 0) {
+    const levelData = levels[currentLevel - 1]; // Current level is already incremented
+
+    if (levelData && code === levelData.password) {
         unlockLevel();
     } else {
         alert("Foute code!");
@@ -124,22 +182,44 @@ function unlockLevel() {
     gameState = 'PLAYING';
     cageScreen.classList.add('hidden');
     cageCodeInput.value = '';
+    resetLevel(false);
 }
 
 function nextLevel() {
-    currentLevel++;
-    gameState = 'LOCKED';
+    if (currentLevel >= levels.length) {
+        alert("GEFELICITEERD! JE HEBT HET SPEL UITGESPEELD!");
+        currentLevel = 1; // Loop back to 1 or end game
+    } else {
+        currentLevel++;
+    }
 
-    // Reset Player
-    player.x = 100;
-    player.y = height - 150; // Safe spawn
-    player.vx = 0;
-    player.vy = 0;
-    camera.x = 0;
+    gameState = 'LOCKED';
 
     // Show Cage UI
     levelTitle.innerText = `Level ${currentLevel} - Kooi`;
     cageScreen.classList.remove('hidden');
+}
+
+function resetLevel(fullReset = true) {
+    const levelData = levels[currentLevel - 1];
+
+    // Update Chaser Speed
+    chaser.speed = levelData.chaserSpeed;
+
+    // Reset Player
+    player.x = 100;
+    player.y = height - 150;
+    player.vx = 0;
+    player.vy = 0;
+
+    // Reset Camera
+    camera.x = 0;
+
+    // Reset Chaser
+    chaser.x = -200;
+
+    // Update Layout
+    updateLevelLayout();
 }
 
 // Collision Detection (AABB)
@@ -224,6 +304,15 @@ function update() {
         }
     });
 
+    // Chaser Logic (Wall of Death)
+    chaser.x += chaser.speed;
+
+    // Wall Collision (Left of Chaser Edge)
+    if (player.x < chaser.x + chaser.width) {
+        console.log("GEPAKT!");
+        resetLevel();
+    }
+
     // Goal Collision
     if (checkCollision(player, goal)) {
         console.log("LEVEL GEHAALD");
@@ -253,6 +342,17 @@ function draw() {
     ctx.fillStyle = player.color;
     ctx.fillRect(player.x, player.y, player.width, player.height);
 
+    // Draw Chaser (Wall of Death)
+    // Draw from far left (relative to camera, but we want it to cover everything left of chaser.x)
+    // Since we translated by -camera.x, drawing from camera.x ensures we cover the visible screen
+    // But simpler: Draw from -10000 to chaser.x + width
+    ctx.fillStyle = chaser.color;
+    ctx.fillRect(camera.x - 100, 0, (chaser.x + chaser.width) - (camera.x - 100), height);
+
+    // Draw leading edge
+    ctx.fillStyle = 'red';
+    ctx.fillRect(chaser.x, 0, chaser.width, height);
+
     ctx.restore();
 }
 
@@ -262,5 +362,7 @@ function loop() {
     requestAnimationFrame(loop);
 }
 
-// Start Game
+// Initial Setup
+resize();
+resetLevel(); // Load Level 1
 loop();
