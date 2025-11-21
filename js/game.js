@@ -9,7 +9,7 @@ const camera = { x: 0, y: 0 };
 const images = {};
 let assetsLoaded = false;
 
-let gameState = 'PLAYING'; // 'PLAYING', 'LOCKED'
+let gameState = 'START_MENU'; // 'START_MENU', 'PLAYING', 'LOCKED'
 let currentLevel = 1;
 
 const keys = {
@@ -25,6 +25,10 @@ const touchControls = {
 };
 
 // UI Elements
+const startScreen = document.getElementById('start-screen');
+const startCodeInput = document.getElementById('start-code');
+const btnStart = document.getElementById('btn-start');
+const hud = document.getElementById('hud');
 const cageScreen = document.getElementById('cage-screen');
 const levelTitle = document.getElementById('level-title');
 const storyText = document.getElementById('story-text');
@@ -174,17 +178,49 @@ addTouchListeners(btnLeft, 'left');
 addTouchListeners(btnRight, 'right');
 addTouchListeners(btnJump, 'jump');
 
-// Cage Puzzle Logic
-btnOpen.addEventListener('click', () => {
-    const code = cageCodeInput.value.toUpperCase();
-    const levelData = levels[currentLevel - 1]; // Current level is already incremented
+// Start Screen Logic
+if (btnStart) {
+    btnStart.addEventListener('click', () => {
+        const code = startCodeInput.value.toUpperCase();
+        // Level 1 password is 'WOLF'
+        if (code === 'WOLF') {
+            startGame();
+        } else {
+            alert("Foute code!");
+        }
+    });
+}
 
-    if (levelData && code === levelData.password) {
-        unlockLevel();
-    } else {
-        alert("Foute code!");
+function startGame() {
+    gameState = 'PLAYING';
+    startScreen.classList.add('hidden');
+    currentLevel = 1;
+    updateHud();
+    resetLevel();
+}
+
+function updateHud() {
+    if (hud) {
+        hud.innerText = `LEVEL: ${currentLevel}`;
     }
-});
+}
+
+// Cage Puzzle Logic
+if (btnOpen) {
+    btnOpen.addEventListener('click', () => {
+        const code = cageCodeInput.value.toUpperCase();
+        // Check password for the CURRENT level (which is the one we are about to play)
+        // When we finish Level 1, nextLevel() increments currentLevel to 2.
+        // So we are at the Cage for Level 2. We need Level 2's password.
+        const levelData = levels[currentLevel - 1];
+
+        if (levelData && code === levelData.password) {
+            unlockLevel();
+        } else {
+            alert("Foute code!");
+        }
+    });
+}
 
 function unlockLevel() {
     gameState = 'PLAYING';
@@ -196,12 +232,16 @@ function unlockLevel() {
 function nextLevel() {
     if (currentLevel >= levels.length) {
         alert("GEFELICITEERD! JE HEBT HET SPEL UITGESPEELD!");
-        currentLevel = 1; // Loop back to 1 or end game
+        gameState = 'START_MENU';
+        startScreen.classList.remove('hidden');
+        currentLevel = 1;
+        return;
     } else {
         currentLevel++;
     }
 
     gameState = 'LOCKED';
+    updateHud();
 
     // Show Cage UI
     levelTitle.innerText = `Level ${currentLevel} - Kooi`;
@@ -252,7 +292,7 @@ function checkCollision(rect1, rect2) {
 
 // Game Loop
 function update() {
-    if (gameState === 'LOCKED') return;
+    if (gameState === 'LOCKED' || gameState === 'START_MENU') return;
 
     // Movement
     if (keys.ArrowLeft || touchControls.left) {
@@ -434,7 +474,7 @@ function loadAssets(callback) {
 
 // Initial Setup
 resize();
-resetLevel(); // Load Level 1
+updateHud();
 
 // Start game after assets load
 loadAssets(() => {
