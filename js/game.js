@@ -6,6 +6,9 @@ let width, height;
 const worldWidth = 2000;
 const camera = { x: 0, y: 0 };
 
+let gameState = 'PLAYING'; // 'PLAYING', 'LOCKED'
+let currentLevel = 1;
+
 const keys = {
     ArrowLeft: false,
     ArrowRight: false,
@@ -17,6 +20,12 @@ const touchControls = {
     right: false,
     jump: false
 };
+
+// UI Elements
+const cageScreen = document.getElementById('cage-screen');
+const levelTitle = document.getElementById('level-title');
+const cageCodeInput = document.getElementById('cage-code');
+const btnOpen = document.getElementById('btn-open');
 
 // Player Object
 const player = {
@@ -99,6 +108,40 @@ addTouchListeners(btnLeft, 'left');
 addTouchListeners(btnRight, 'right');
 addTouchListeners(btnJump, 'jump');
 
+// Cage Puzzle Logic
+btnOpen.addEventListener('click', () => {
+    const code = cageCodeInput.value.toUpperCase();
+    // For now, accept 'WOLF' or just let them pass if they type anything/nothing for easy testing if desired.
+    // User asked: "Voor nu mag de code simpelweg 'WOLF' zijn (of maak het zo dat elke invoer werkt voor testdoeleinden)."
+    if (code === 'WOLF' || code.length > 0) {
+        unlockLevel();
+    } else {
+        alert("Foute code!");
+    }
+});
+
+function unlockLevel() {
+    gameState = 'PLAYING';
+    cageScreen.classList.add('hidden');
+    cageCodeInput.value = '';
+}
+
+function nextLevel() {
+    currentLevel++;
+    gameState = 'LOCKED';
+
+    // Reset Player
+    player.x = 100;
+    player.y = height - 150; // Safe spawn
+    player.vx = 0;
+    player.vy = 0;
+    camera.x = 0;
+
+    // Show Cage UI
+    levelTitle.innerText = `Level ${currentLevel} - Kooi`;
+    cageScreen.classList.remove('hidden');
+}
+
 // Collision Detection (AABB)
 function checkCollision(rect1, rect2) {
     return (
@@ -111,6 +154,8 @@ function checkCollision(rect1, rect2) {
 
 // Game Loop
 function update() {
+    if (gameState === 'LOCKED') return;
+
     // Movement
     if (keys.ArrowLeft || touchControls.left) {
         player.vx = -player.speed;
@@ -133,25 +178,21 @@ function update() {
     player.x += player.vx;
 
     // Camera Logic (Follow Player)
-    // Camera follows player if they move past 30% of the screen width
     if (player.x > camera.x + width * 0.3) {
         camera.x = player.x - width * 0.3;
     }
 
-    // Clamp Camera (Don't show past world end)
+    // Clamp Camera
     if (camera.x > worldWidth - width) {
         camera.x = worldWidth - width;
     }
-    // Clamp Camera (Don't show before 0)
     if (camera.x < 0) camera.x = 0;
 
     // Player World Boundaries
-    // Prevent moving left of camera (Mario style)
     if (player.x < camera.x) {
         player.x = camera.x;
         player.vx = 0;
     }
-    // Prevent moving past world end
     if (player.x + player.width > worldWidth) {
         player.x = worldWidth - player.width;
     }
@@ -160,7 +201,7 @@ function update() {
     player.y += player.vy;
 
     // Ground Collision (Floor)
-    player.grounded = false; // Assume falling unless collision found
+    player.grounded = false;
     if (player.y + player.height > height) {
         player.y = height - player.height;
         player.vy = 0;
@@ -169,16 +210,11 @@ function update() {
 
     // Platform Collision
     platforms.forEach(platform => {
-        // Check if player is within horizontal bounds of platform
         if (player.x + player.width > platform.x && player.x < platform.x + platform.width) {
-            // Check if player is falling (vy >= 0)
             if (player.vy >= 0) {
                 const platformTop = platform.y;
                 const playerBottom = player.y + player.height;
 
-                // If we are overlapping the platform vertically
-                // We check if the player's bottom is close to the platform top
-                // The tolerance allows for high speed falling to still catch the platform
                 if (playerBottom >= platformTop && playerBottom <= platformTop + player.vy + 10) {
                     player.y = platformTop - player.height;
                     player.vy = 0;
@@ -191,6 +227,7 @@ function update() {
     // Goal Collision
     if (checkCollision(player, goal)) {
         console.log("LEVEL GEHAALD");
+        nextLevel();
     }
 }
 
