@@ -89,25 +89,39 @@ const levels = [
     }
 ];
 
-// Player Object
+// Player Object (met animatie data)
 const player = {
     x: 100,
     y: 100,
-    width: 40,
-    height: 40,
+    width: 40,   // Hitbox breedte
+    height: 40,  // Hitbox hoogte
     color: '#00ffcc',
     vx: 0,
     vy: 0,
     speed: 5,
     jumpPower: -17,
     gravity: 0.8,
-    grounded: false
+    grounded: false,
+    facingRight: true, // Welke kant kijkt hij op?
+    // Animatie settings
+    frameX: 0,       // Huidige frame in de rij (0, 1, 2...)
+    frameY: 0,       // Huidige rij (0 = Idle, 1 = Run, 2 = Jump)
+    maxFrames: 4,    // Hoeveel frames heeft de huidige animatie?
+    timer: 0,        // Timer voor animatiesnelheid
+    fps: 4          // Snelheid van animatie
+};
+
+// Sprite configuratie (Afgestemd op wat we straks gaan genereren)
+const spriteConfig = {
+    frameWidth: 64,  // Breedte van 1 plaatje in de sheet
+    frameHeight: 64, // Hoogte van 1 plaatje in de sheet
+    scale: 1.2       // Schaal om hem iets groter te tekenen dan de hitbox
 };
 
 // Chaser Object (Wall of Death)
 const chaser = {
-    x: -200,
-    width: 40, // Visual width of the leading edge
+    x: -465,
+    width: 365, // Visual width of the leading edge (was 40)
     color: 'rgba(255, 0, 0, 0.3)',
     speed: 2.0
 };
@@ -117,8 +131,8 @@ let platforms = [];
 const goal = {
     x: 1900,
     y: 0,
-    width: 50,
-    height: 50,
+    width: 100,
+    height: 100,
     color: 'gold'
 };
 
@@ -141,12 +155,12 @@ function updateLevelLayout() {
     platforms = levelData.platforms.map(p => ({
         ...p,
         y: height - p.bottom, // Calculate y based on bottom offset
-        height: 20 // Ensure height is set
+        height: 50 // Ensure height is set
     }));
 
     // Position goal
     goal.x = levelData.finishX;
-    goal.y = height - goal.height - 50; // Slightly above bottom
+    goal.y = height - goal.height - 30; // Slightly above bottom
 }
 
 // Input Handling
@@ -276,7 +290,7 @@ function resetLevel(fullReset = true) {
     camera.x = 0;
 
     // Reset Chaser
-    chaser.x = -200;
+    chaser.x = -465;
 
     // Update Layout
     updateLevelLayout();
@@ -293,8 +307,39 @@ function checkCollision(rect1, rect2) {
 }
 
 // Game Loop
+function handlePlayerAnimation() {
+    // 1. Bepaal de rij (Actie)
+    if (!player.grounded) {
+        player.frameY = 2; // Rij 2: Springen
+        player.maxFrames = 2; // Spring animatie is vaak kort
+    } else if (player.vx !== 0) {
+        player.frameY = 1; // Rij 1: Rennen
+        player.maxFrames = 6; // Ren animatie heeft meer frames
+    } else {
+        player.frameY = 0; // Rij 0: Stilstaan (Idle)
+        player.maxFrames = 4;
+    }
+
+    // 2. Bepaal richting (Flip)
+    if (player.vx > 0) player.facingRight = true;
+    if (player.vx < 0) player.facingRight = false;
+
+    // 3. Animeer de frames (Loop door de plaatjes heen)
+    player.timer++;
+    if (player.timer > 60 / player.fps) { // 60 is de game framerate (ongeveer)
+        player.timer = 0;
+        if (player.frameX < player.maxFrames - 1) {
+            player.frameX++;
+        } else {
+            player.frameX = 0; // Terug naar begin van de loop
+        }
+    }
+}
+
 function update() {
     if (gameState === 'LOCKED' || gameState === 'START_MENU') return;
+
+    handlePlayerAnimation();
 
     // Movement
     if (keys.ArrowLeft || touchControls.left) {
@@ -415,8 +460,33 @@ function draw() {
 
     // Draw Player
     if (assetsLoaded && images.player) {
-        ctx.drawImage(images.player, player.x, player.y, player.width, player.height);
+        // Bereken welk stukje van de sheet we pakken
+        const sx = player.frameX * spriteConfig.frameWidth;
+        const sy = player.frameY * spriteConfig.frameHeight;
+
+        // Positie op scherm (gecentreerd op de hitbox)
+        // We tekenen de sprite iets groter dan de hitbox voor mooi effect
+        const drawWidth = spriteConfig.frameWidth * spriteConfig.scale;
+        const drawHeight = spriteConfig.frameHeight * spriteConfig.scale;
+        const drawX = player.x + player.width / 2;
+        const drawY = player.y + player.height / 2 + 5; // +5 kleine correctie voor voeten op de grond
+
+        ctx.save();
+        ctx.translate(drawX, drawY); // Ga naar het midden van de speler
+
+        if (!player.facingRight) {
+            ctx.scale(-1, 1); // Spiegel horizontaal als we naar links gaan
+        }
+
+        ctx.drawImage(
+            images.player,
+            sx, sy, spriteConfig.frameWidth, spriteConfig.frameHeight, // Source (uit sheet)
+            -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight         // Destination (op scherm)
+        );
+
+        ctx.restore();
     } else {
+        // Fallback (Oude blokje)
         ctx.fillStyle = player.color;
         ctx.fillRect(player.x, player.y, player.width, player.height);
     }
@@ -424,8 +494,8 @@ function draw() {
     // Draw Chaser (Wall of Death)
     if (assetsLoaded && images.chaser) {
         ctx.drawImage(images.chaser, chaser.x, 0, chaser.width, height);
-        ctx.fillStyle = 'rgba(50, 0, 0, 0.8)';
-        ctx.fillRect(camera.x - 100, 0, (chaser.x) - (camera.x - 100), height);
+        //ctx.fillStyle = 'rgba(50, 0, 0, 0.8)';
+        //ctx.fillRect(camera.x - 100, 0, (chaser.x) - (camera.x - 100), height);
     } else {
         ctx.fillStyle = chaser.color;
         ctx.fillRect(camera.x - 100, 0, (chaser.x + chaser.width) - (camera.x - 100), height);
