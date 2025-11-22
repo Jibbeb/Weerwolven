@@ -40,13 +40,13 @@ const levels = [
     {
         id: 1,
         platforms: [
-            { x: 300, y: 0, width: 200, height: 20, color: '#ff0055' },
-            { x: 600, y: 0, width: 200, height: 20, color: '#ff0055' },
-            { x: 900, y: 0, width: 200, height: 20, color: '#ff0055' },
-            { x: 1200, y: 0, width: 200, height: 20, color: '#ff0055' },
-            { x: 1600, y: 0, width: 100, height: 20, color: '#ff0055' }
+            { x: 0, width: 600, bottom: 50, color: '#ff0055' },
+            { x: 700, width: 500, bottom: 50, color: '#ff0055' },
+            { x: 1300, width: 500, bottom: 50, color: '#ff0055' },
+            { x: 1900, width: 500, bottom: 50, color: '#ff0055' },
+            { x: 2500, width: 200, bottom: 50, color: '#ff0055' }
         ],
-        finishX: 1900,
+        finishX: 2600,
         chaserSpeed: 2.0,
         password: 'WOLF',
         story: "De nacht valt over Wakkerdam. Je voelt een hete adem in je nek. REN!"
@@ -54,31 +54,36 @@ const levels = [
     {
         id: 2,
         platforms: [
-            { x: 200, y: 0, width: 150, height: 20, color: '#0055ff' },
-            { x: 500, y: 0, width: 150, height: 20, color: '#0055ff' },
-            { x: 800, y: 0, width: 150, height: 20, color: '#0055ff' },
-            { x: 1100, y: 0, width: 150, height: 20, color: '#0055ff' },
-            { x: 1500, y: 0, width: 150, height: 20, color: '#0055ff' },
-            { x: 1800, y: 0, width: 150, height: 20, color: '#0055ff' }
+            { x: 100, width: 200, bottom: 50, color: '#0055ff' },
+            { x: 400, width: 150, bottom: 150, color: '#0055ff' },
+            { x: 700, width: 150, bottom: 50, color: '#0055ff' },
+            { x: 1000, width: 150, bottom: 200, color: '#0055ff' },
+            { x: 1300, width: 150, bottom: 100, color: '#0055ff' },
+            { x: 1600, width: 150, bottom: 250, color: '#0055ff' },
+            { x: 1900, width: 150, bottom: 150, color: '#0055ff' },
+            { x: 2200, width: 200, bottom: 50, color: '#0055ff' }
         ],
-        finishX: 2200,
-        chaserSpeed: 2.5,
+        finishX: 2300,
+        chaserSpeed: 3.0,
         password: 'MOON',
         story: "Je bent even veilig, maar de geur van het bos is onheilspellend. Hij komt dichterbij."
     },
     {
         id: 3,
         platforms: [
-            { x: 250, y: 0, width: 100, height: 20, color: '#55ff00' },
-            { x: 500, y: 0, width: 100, height: 20, color: '#55ff00' },
-            { x: 750, y: 0, width: 100, height: 20, color: '#55ff00' },
-            { x: 1000, y: 0, width: 100, height: 20, color: '#55ff00' },
-            { x: 1300, y: 0, width: 100, height: 20, color: '#55ff00' },
-            { x: 1600, y: 0, width: 100, height: 20, color: '#55ff00' },
-            { x: 2000, y: 0, width: 100, height: 20, color: '#55ff00' }
+            { x: 100, width: 150, bottom: 50, color: '#55ff00' },
+            { x: 350, width: 100, bottom: 120, color: '#55ff00' },
+            { x: 550, width: 100, bottom: 190, color: '#55ff00' },
+            { x: 750, width: 100, bottom: 260, color: '#55ff00' },
+            { x: 1000, width: 100, bottom: 190, color: '#55ff00' },
+            { x: 1250, width: 100, bottom: 120, color: '#55ff00' },
+            { x: 1500, width: 100, bottom: 50, color: '#55ff00' },
+            { x: 1750, width: 100, bottom: 150, color: '#55ff00' },
+            { x: 2000, width: 100, bottom: 250, color: '#55ff00' },
+            { x: 2300, width: 200, bottom: 50, color: '#55ff00' }
         ],
-        finishX: 2500,
-        chaserSpeed: 3.0,
+        finishX: 2400,
+        chaserSpeed: 3.8,
         password: 'HOWL',
         story: "Het hol van het beest. Dit is je laatste kans om de waarheid te onthullen. Overleef."
     }
@@ -133,18 +138,15 @@ function updateLevelLayout() {
     worldWidth = levelData.finishX + 500;
 
     // Load Platforms
-    platforms = levelData.platforms.map(p => ({ ...p })); // Copy
-
-    // Position platforms relative to bottom (simple procedural height for now)
-    platforms.forEach((p, i) => {
-        // Alternating heights for variety
-        const offset = (i % 3 + 1) * 120;
-        p.y = height - offset;
-    });
+    platforms = levelData.platforms.map(p => ({
+        ...p,
+        y: height - p.bottom, // Calculate y based on bottom offset
+        height: 20 // Ensure height is set
+    }));
 
     // Position goal
     goal.x = levelData.finishX;
-    goal.y = height - goal.height;
+    goal.y = height - goal.height - 50; // Slightly above bottom
 }
 
 // Input Handling
@@ -338,12 +340,10 @@ function update() {
     // Apply Vertical Movement
     player.y += player.vy;
 
-    // Ground Collision (Floor)
-    player.grounded = false;
-    if (player.y + player.height > height) {
-        player.y = height - player.height;
-        player.vy = 0;
-        player.grounded = true;
+    // Pit Detection (Fall off screen)
+    if (player.y > height) {
+        console.log("Gevallen!");
+        resetLevel();
     }
 
     // Platform Collision
